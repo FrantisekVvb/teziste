@@ -37,12 +37,21 @@
   const shapeGroup = document.getElementById("shape-group");
   const shapeBody = document.getElementById("shape-body");
   const shapeStroke = document.getElementById("shape-stroke");
+  const shapeClipPath = document.getElementById("shape-clip-path");
+  const drawingsGroup = document.getElementById("drawings");
   const holesGroup = document.getElementById("holes");
   const hookGroup = document.getElementById("hook");
   const hookOverGroup = document.getElementById("hook-over");
   const holesClip = document.getElementById("holes-clip");
+  const guessLayer = document.getElementById("guess-layer");
+  const guessFeedback = document.getElementById("guess-feedback");
   const app = document.getElementById("app");
+  const guessCmBtn = document.getElementById("tool-guess-cm");
+  const pencilBtn = document.getElementById("tool-pencil");
+  const clearDrawingsBtn = document.getElementById("clear-drawings-btn");
   const unhookBtn = document.getElementById("unhook-btn");
+
+  const DRAW_MIN_DIST = 0.8;
 
   const centroid = polygonCentroid(VERTICES);
 
@@ -63,6 +72,11 @@
     nearIndex: -1,
     lastT: 0,
     placed: false,
+    tool: "move",
+    drawing: false,
+    currentStroke: null,
+    strokePoints: [],
+    guessResult: null,
   };
 
   function circlePath(cx, cy, r) {
@@ -74,6 +88,11 @@
     SHAPE_D + HOLES.map(([x, y]) => circlePath(x, y, HOLE_R)).join("")
   );
   shapeStroke.setAttribute("d", SHAPE_D);
+  shapeClipPath.setAttribute(
+    "d",
+    SHAPE_D + HOLES.map(([x, y]) => circlePath(x, y, HOLE_R)).join("")
+  );
+  shapeClipPath.setAttribute("fill-rule", "evenodd");
 
   HOLES.forEach((hole, index) => {
     const hit = document.createElementNS("http://www.w3.org/2000/svg", "circle");
@@ -209,6 +228,133 @@
     };
   }
 
+  function pointOnShapeBody(x, y) {
+    if (!pointInPolygon(x, y, VERTICES)) return false;
+    for (let i = 0; i < HOLES.length; i += 1) {
+      const hole = HOLES[i];
+      if (Math.hypot(x - hole[0], y - hole[1]) <= HOLE_R) return false;
+    }
+    return true;
+  }
+
+  function setTool(tool) {
+    if (tool !== "guess-cm") {
+      clearGuessResult();
+    }
+    state.tool = tool;
+    app.dataset.tool = tool;
+    guessCmBtn.classList.toggle("is-active", tool === "guess-cm");
+    guessCmBtn.setAttribute("aria-pressed", String(tool === "guess-cm"));
+    pencilBtn.classList.toggle("is-active", tool === "pencil");
+    pencilBtn.setAttribute("aria-pressed", String(tool === "pencil"));
+  }
+
+  function referenceGuessDistance() {
+    const bounds = shapeBounds();
+    return Math.hypot(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY) * SHAPE_SCALE * 0.45;
+  }
+
+  function guessAccuracyLabel(distance) {
+    const ref = referenceGuessDistance();
+    const score = Math.max(0, Math.round(100 - (distance / ref) * 100));
+    let label = "Od těžiště jsi dost daleko.";
+    if (distance <= ref * 0.12) label = "Výborně! Velmi přesný odhad.";
+    else if (distance <= ref * 0.28) label = "Dobře, jsi docela blízko.";
+    else if (distance <= ref * 0.5) label = "Už to není daleko.";
+    return { score, label, ref };
+  }
+
+  function clearGuessResult() {
+    state.guessResult = null;
+    guessLayer.replaceChildren();
+    guessLayer.hidden = true;
+    guessFeedback.hidden = true;
+    guessFeedback.textContent = "";
+  }
+
+  function submitGuess(guessWorld) {
+    const actual = localToWorld(centroid.x, centroid.y);
+    const distance = Math.hypot(guessWorld.x - actual.x, guessWorld.y - actual.y);
+    const { score, label } = guessAccuracyLabel(distance);
+    state.guessResult = {
+      guessX: guessWorld.x,
+      guessY: guessWorld.y,
+      distance,
+      score,
+      label,
+    };
+    guessFeedback.innerHTML = `<strong>${label}</strong>Odchylka ${Math.round(distance)} px · přesnost ${score}&nbsp;%`;
+    guessFeedback.hidden = false;
+    updateGuessVisuals();
+  }
+
+  function createCross(x, y, className) {
+    const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    group.classList.add(className);
+    group.setAttribute("transform", `translate(${x} ${y})`);
+
+    const size = 8;
+    [[-size, 0, size, 0], [0, -size, 0, size]].forEach(([x1, y1, x2, y2]) => {
+      const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+      line.setAttribute("x1", x1);
+      line.setAttribute("y1", y1);
+      line.setAttribute("x2", x2);
+      line.setAttribute("y2", y2);
+      group.append(line);
+    });
+
+    return group;
+  }
+
+  function updateGuessVisuals() {
+    if (!state.guessResult || state.tool !== "guess-cm") {
+      guessLayer.hidden = true;
+      return;
+    }
+
+    const actual = localToWorld(centroid.x, centroid.y);
+    const guess = state.guessResult;
+    guessLayer.hidden = false;
+    guessLayer.replaceChildren();
+
+    guessLayer.append(createCross(guess.guessX, guess.guessY, "guess-cross"));
+    guessLayer.append(createCross(actual.x, actual.y, "cm-cross"));
+  }
+
+  function startStroke(local) {
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.classList.add("drawing-stroke");
+    path.setAttribute("d", `M${local.x} ${local.y}`);
+    drawingsGroup.append(path);
+    state.drawing = true;
+    state.currentStroke = path;
+    state.strokePoints = [{ x: local.x, y: local.y }];
+    app.classList.add("is-drawing");
+  }
+
+  function continueStroke(local) {
+    if (!state.drawing || !state.currentStroke) return;
+    const last = state.strokePoints[state.strokePoints.length - 1];
+    if (Math.hypot(local.x - last.x, local.y - last.y) < DRAW_MIN_DIST) return;
+    state.strokePoints.push({ x: local.x, y: local.y });
+    const d = state.strokePoints
+      .map((point, index) => `${index === 0 ? "M" : "L"}${point.x} ${point.y}`)
+      .join(" ");
+    state.currentStroke.setAttribute("d", d);
+  }
+
+  function finishStroke() {
+    state.drawing = false;
+    state.currentStroke = null;
+    state.strokePoints = [];
+    app.classList.remove("is-drawing");
+  }
+
+  function clearDrawings() {
+    drawingsGroup.replaceChildren();
+    finishStroke();
+  }
+
   function hitTest(local) {
     for (let i = 0; i < HOLES.length; i += 1) {
       const hole = HOLES[i];
@@ -295,6 +441,9 @@
     state.dragging = false;
     state.dragMode = null;
     app.classList.remove("is-dragging");
+    clearDrawings();
+    clearGuessResult();
+    setTool("move");
     placeFreeCenter();
     render();
   }
@@ -321,6 +470,8 @@
       clip.setAttribute("cx", world.x);
       clip.setAttribute("cy", world.y);
     });
+
+    updateGuessVisuals();
   }
 
   function step(t) {
@@ -353,6 +504,21 @@
   function onPointerDown(event) {
     const pointer = pointerFromEvent(event);
     const local = worldToLocal(pointer.x, pointer.y);
+
+    if (state.tool === "pencil") {
+      if (!pointOnShapeBody(local.x, local.y)) return;
+      event.preventDefault();
+      scene.setPointerCapture(event.pointerId);
+      startStroke(local);
+      return;
+    }
+
+    if (state.tool === "guess-cm") {
+      event.preventDefault();
+      submitGuess(pointer);
+      return;
+    }
+
     const hit = hitTest(local);
     if (!hit) return;
 
@@ -379,8 +545,17 @@
   }
 
   function onPointerMove(event) {
-    if (!state.dragging) return;
     const pointer = pointerFromEvent(event);
+
+    if (state.drawing) {
+      const local = worldToLocal(pointer.x, pointer.y);
+      if (pointOnShapeBody(local.x, local.y)) {
+        continueStroke(local);
+      }
+      return;
+    }
+
+    if (!state.dragging) return;
 
     if (state.dragMode === "swing" && state.hungIndex >= 0) {
       const hole = HOLES[state.hungIndex];
@@ -405,7 +580,15 @@
     state.ty = pointer.y - grabRot.y;
   }
 
-  function onPointerUp() {
+  function onPointerUp(event) {
+    if (state.drawing) {
+      if (scene.hasPointerCapture(event.pointerId)) {
+        scene.releasePointerCapture(event.pointerId);
+      }
+      finishStroke();
+      return;
+    }
+
     if (!state.dragging) return;
     state.dragging = false;
     state.dragMode = null;
@@ -423,6 +606,20 @@
   scene.addEventListener("pointermove", onPointerMove);
   scene.addEventListener("pointerup", onPointerUp);
   scene.addEventListener("pointercancel", onPointerUp);
+
+  guessCmBtn.addEventListener("click", () => {
+    setTool(state.tool === "guess-cm" ? "move" : "guess-cm");
+  });
+
+  pencilBtn.addEventListener("click", () => {
+    if (state.tool === "pencil") {
+      setTool("move");
+      return;
+    }
+    setTool("pencil");
+  });
+
+  clearDrawingsBtn.addEventListener("click", clearDrawings);
 
   unhookBtn.addEventListener("click", resetToDefault);
 

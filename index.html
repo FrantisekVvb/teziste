@@ -10,15 +10,26 @@
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
-    <div class="app" id="app">
+    <div class="app" id="app" data-tool="move">
       <header class="hud" aria-label="Ovládání">
         <h1 class="hud-title">Těžiště</h1>
         <div class="hud-actions">
+          <button type="button" id="tool-guess-cm" class="hud-btn" aria-pressed="false">
+            Označit těžiště
+          </button>
+          <button type="button" id="tool-pencil" class="hud-btn" aria-pressed="false">
+            Tužka
+          </button>
+          <button type="button" id="clear-drawings-btn" class="hud-btn">
+            Smazat
+          </button>
           <button type="button" id="unhook-btn" class="hud-btn">
             Sundat
           </button>
         </div>
       </header>
+
+      <p id="guess-feedback" class="guess-feedback" hidden></p>
 
       <svg
         id="scene"
@@ -31,12 +42,18 @@
           <g id="hook" class="hook"></g>
 
           <g id="shape-group">
+            <clipPath id="shape-clip" clipPathUnits="userSpaceOnUse">
+              <path id="shape-clip-path"></path>
+            </clipPath>
             <path id="shape-body" class="shape-body" />
             <path id="shape-stroke" class="shape-stroke" />
+            <g id="drawings" clip-path="url(#shape-clip)"></g>
             <g id="holes"></g>
           </g>
 
           <g id="hook-over" class="hook" clip-path="url(#holes-clip)"></g>
+
+          <g id="guess-layer" hidden></g>
         </g>
       </svg>
     </div>
