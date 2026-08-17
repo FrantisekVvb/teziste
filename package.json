@@ -1,0 +1,13 @@
+{
+  "name": "teziste",
+  "version": "1.0.0",
+  "description": "Těžiště — zavěšení útvaru na háček",
+  "license": "MIT",
+  "scripts": {
+    "start": "npx --yes serve . -l 3482",
+    "dev": "npm start"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

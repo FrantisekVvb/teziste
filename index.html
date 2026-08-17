@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="cs">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
+    <title>Těžiště</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="app" id="app">
+      <header class="hud" aria-label="Ovládání">
+        <h1 class="hud-title">Těžiště</h1>
+        <div class="hud-actions">
+          <button type="button" id="unhook-btn" class="hud-btn">
+            Sundat
+          </button>
+        </div>
+      </header>
+
+      <svg
+        id="scene"
+        class="scene"
+        xmlns="http://www.w3.org/2000/svg"
+        aria-label="Plocha s háčkem a útvarem"
+      >
+        <g id="world">
+          <clipPath id="holes-clip" clipPathUnits="userSpaceOnUse"></clipPath>
+          <g id="hook" class="hook"></g>
+
+          <g id="shape-group">
+            <path id="shape-body" class="shape-body" />
+            <path id="shape-stroke" class="shape-stroke" />
+            <g id="holes"></g>
+          </g>
+
+          <g id="hook-over" class="hook" clip-path="url(#holes-clip)"></g>
+        </g>
+      </svg>
+    </div>
+
+    <script src="main.js"></script>
+  </body>
+</html>
