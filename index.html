@@ -12,7 +12,27 @@
   <body>
     <div class="app" id="app" data-tool="move">
       <header class="hud" aria-label="Ovládání">
-        <h1 class="hud-title">Těžiště</h1>
+        <div class="hud-left">
+          <h1 class="hud-title">Těžiště</h1>
+          <div class="shape-picker" role="group" aria-label="Výběr objektu">
+            <button type="button" class="shape-btn is-active" data-shape="utvar" aria-pressed="true">
+              <span class="shape-swatch" style="background: #f06d6d"></span>
+              Útvar
+            </button>
+            <button type="button" class="shape-btn" data-shape="kruh" aria-pressed="false">
+              <span class="shape-swatch" style="background: #5b8def"></span>
+              Kruh
+            </button>
+            <button type="button" class="shape-btn" data-shape="podkova" aria-pressed="false">
+              <span class="shape-swatch" style="background: #e8a317"></span>
+              Podkova
+            </button>
+            <button type="button" class="shape-btn" data-shape="bumerang" aria-pressed="false">
+              <span class="shape-swatch" style="background: #6fbf73"></span>
+              Bumerang
+            </button>
+          </div>
+        </div>
         <div class="hud-actions">
           <button type="button" id="tool-guess-cm" class="hud-btn" aria-pressed="false">
             Označit těžiště
@@ -35,7 +55,7 @@
         id="scene"
         class="scene"
         xmlns="http://www.w3.org/2000/svg"
-        aria-label="Plocha s háčkem a útvarem"
+        aria-label="Plocha s kolečkem a objektem"
       >
         <g id="world">
           <clipPath id="holes-clip" clipPathUnits="userSpaceOnUse"></clipPath>

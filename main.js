@@ -2,27 +2,6 @@
   const SVG_W = 311;
   const SVG_H = 310;
 
-  const SHAPE_D =
-    "M247.668 148.532L163.669 22.6651L104.133 113.921L32.9109 128.942L71.7213 227.303L204.455 273.132L247.668 148.532Z";
-
-  const VERTICES = [
-    [247.668, 148.532],
-    [163.669, 22.6651],
-    [104.133, 113.921],
-    [32.9109, 128.942],
-    [71.7213, 227.303],
-    [204.455, 273.132],
-  ];
-
-  const HOLES = [
-    [163.384, 44.7653],
-    [231.986, 151.418],
-    [195.787, 256.697],
-    [81.4278, 215.856],
-    [51.8553, 138.847],
-    [112.068, 124.035],
-  ];
-
   const SHAPE_SCALE = 0.7;
   const PEG = { x: 163.5, y: 44, r: 7 * SHAPE_SCALE };
   const HOOK_ATTACH = { x: PEG.x, y: PEG.y };
@@ -31,6 +10,209 @@
   const SNAP = 14 * SHAPE_SCALE;
   const G = 1800;
   const DAMPING = 2.4;
+  const DRAW_MIN_DIST = 0.8;
+
+  function circlePath(cx, cy, r) {
+    return `M${cx - r} ${cy}a${r} ${r} 0 1 0 ${r * 2} 0a${r} ${r} 0 1 0 ${-r * 2} 0`;
+  }
+
+  function polygonPath(verts) {
+    return `${verts.map(([x, y], i) => `${i ? "L" : "M"}${x} ${y}`).join("")}Z`;
+  }
+
+  function polygonCentroid(verts) {
+    let area = 0;
+    let cx = 0;
+    let cy = 0;
+    for (let i = 0; i < verts.length; i += 1) {
+      const [x1, y1] = verts[i];
+      const [x2, y2] = verts[(i + 1) % verts.length];
+      const cross = x1 * y2 - x2 * y1;
+      area += cross;
+      cx += (x1 + x2) * cross;
+      cy += (y1 + y2) * cross;
+    }
+    area *= 0.5;
+    return { x: cx / (6 * area), y: cy / (6 * area) };
+  }
+
+  function boundsOf(verts) {
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    verts.forEach(([x, y]) => {
+      minX = Math.min(minX, x);
+      minY = Math.min(minY, y);
+      maxX = Math.max(maxX, x);
+      maxY = Math.max(maxY, y);
+    });
+    return { minX, minY, maxX, maxY };
+  }
+
+  function makeHorseshoeVertices() {
+    const cx = 156;
+    const cy = 148;
+    const outerR = 102;
+    const innerR = 58;
+    const start = (145 * Math.PI) / 180;
+    const end = (35 * Math.PI) / 180 + Math.PI * 2;
+    const steps = 28;
+    const tipSteps = 8;
+    const midR = (outerR + innerR) / 2;
+    const halfW = (outerR - innerR) / 2;
+    const verts = [];
+
+    for (let i = 0; i <= steps; i += 1) {
+      const t = start + ((end - start) * i) / steps;
+      verts.push([cx + outerR * Math.cos(t), cy + outerR * Math.sin(t)]);
+    }
+    for (let i = 1; i < tipSteps; i += 1) {
+      const t = (Math.PI * i) / tipSteps;
+      const capCx = cx + midR * Math.cos(end);
+      const capCy = cy + midR * Math.sin(end);
+      const a = end + t;
+      verts.push([capCx + halfW * Math.cos(a), capCy + halfW * Math.sin(a)]);
+    }
+    for (let i = steps; i >= 0; i -= 1) {
+      const t = start + ((end - start) * i) / steps;
+      verts.push([cx + innerR * Math.cos(t), cy + innerR * Math.sin(t)]);
+    }
+    for (let i = 1; i < tipSteps; i += 1) {
+      const t = (Math.PI * i) / tipSteps;
+      const capCx = cx + midR * Math.cos(start);
+      const capCy = cy + midR * Math.sin(start);
+      const a = start + Math.PI + t;
+      verts.push([capCx + halfW * Math.cos(a), capCy + halfW * Math.sin(a)]);
+    }
+
+    return { verts, cx, cy, midR, start, end };
+  }
+
+  const UTVAR_VERTS = [
+    [247.668, 148.532],
+    [163.669, 22.6651],
+    [104.133, 113.921],
+    [32.9109, 128.942],
+    [71.7213, 227.303],
+    [204.455, 273.132],
+  ];
+
+  const CIRCLE = { cx: 156, cy: 168, r: 98 };
+  const CIRCLE_RING = 76;
+
+  const horseshoe = makeHorseshoeVertices();
+
+  const BUMERANG_VERTS = [
+    [52, 110],
+    [48, 82],
+    [72, 58],
+    [108, 70],
+    [148, 128],
+    [164, 128],
+    [204, 70],
+    [240, 58],
+    [264, 82],
+    [260, 110],
+    [186, 218],
+    [156, 236],
+    [126, 218],
+  ];
+
+  const SHAPES = [
+    {
+      id: "utvar",
+      kind: "polygon",
+      fill: "#f06d6d",
+      stroke: "#ff2828",
+      path: polygonPath(UTVAR_VERTS),
+      vertices: UTVAR_VERTS,
+      holes: [
+        [163.384, 44.7653],
+        [231.986, 151.418],
+        [195.787, 256.697],
+        [81.4278, 215.856],
+        [51.8553, 138.847],
+        [112.068, 124.035],
+      ],
+      centroid: polygonCentroid(UTVAR_VERTS),
+      bounds: boundsOf(UTVAR_VERTS),
+    },
+    {
+      id: "kruh",
+      kind: "circle",
+      fill: "#5b8def",
+      stroke: "#2f6fed",
+      path: circlePath(CIRCLE.cx, CIRCLE.cy, CIRCLE.r),
+      vertices: [],
+      cx: CIRCLE.cx,
+      cy: CIRCLE.cy,
+      r: CIRCLE.r,
+      holes: [
+        [CIRCLE.cx, CIRCLE.cy - CIRCLE_RING],
+        [CIRCLE.cx + CIRCLE_RING, CIRCLE.cy],
+        [CIRCLE.cx, CIRCLE.cy + CIRCLE_RING],
+        [CIRCLE.cx - CIRCLE_RING, CIRCLE.cy],
+        [CIRCLE.cx + CIRCLE_RING * 0.7, CIRCLE.cy - CIRCLE_RING * 0.7],
+      ],
+      centroid: { x: CIRCLE.cx, y: CIRCLE.cy },
+      bounds: {
+        minX: CIRCLE.cx - CIRCLE.r,
+        minY: CIRCLE.cy - CIRCLE.r,
+        maxX: CIRCLE.cx + CIRCLE.r,
+        maxY: CIRCLE.cy + CIRCLE.r,
+      },
+    },
+    {
+      id: "podkova",
+      kind: "polygon",
+      fill: "#e8a317",
+      stroke: "#c4840c",
+      path: polygonPath(horseshoe.verts),
+      vertices: horseshoe.verts,
+      holes: [
+        [
+          horseshoe.cx,
+          horseshoe.cy + horseshoe.midR * Math.sin((270 * Math.PI) / 180),
+        ],
+        [
+          horseshoe.cx + horseshoe.midR * Math.cos(horseshoe.start),
+          horseshoe.cy + horseshoe.midR * Math.sin(horseshoe.start),
+        ],
+        [
+          horseshoe.cx + horseshoe.midR * Math.cos(horseshoe.end),
+          horseshoe.cy + horseshoe.midR * Math.sin(horseshoe.end),
+        ],
+        [
+          horseshoe.cx + horseshoe.midR * Math.cos((200 * Math.PI) / 180),
+          horseshoe.cy + horseshoe.midR * Math.sin((200 * Math.PI) / 180),
+        ],
+        [
+          horseshoe.cx + horseshoe.midR * Math.cos((340 * Math.PI) / 180),
+          horseshoe.cy + horseshoe.midR * Math.sin((340 * Math.PI) / 180),
+        ],
+      ],
+      centroid: polygonCentroid(horseshoe.verts),
+      bounds: boundsOf(horseshoe.verts),
+    },
+    {
+      id: "bumerang",
+      kind: "polygon",
+      fill: "#6fbf73",
+      stroke: "#3d9a4a",
+      path: polygonPath(BUMERANG_VERTS),
+      vertices: BUMERANG_VERTS,
+      holes: [
+        [78, 78],
+        [234, 78],
+        [156, 200],
+        [118, 118],
+        [194, 118],
+      ],
+      centroid: polygonCentroid(BUMERANG_VERTS),
+      bounds: boundsOf(BUMERANG_VERTS),
+    },
+  ];
 
   const scene = document.getElementById("scene");
   const worldGroup = document.getElementById("world");
@@ -51,9 +233,10 @@
   const clearDrawingsBtn = document.getElementById("clear-drawings-btn");
   const unhookBtn = document.getElementById("unhook-btn");
 
-  const DRAW_MIN_DIST = 0.8;
-
-  const centroid = polygonCentroid(VERTICES);
+  let VERTICES = [];
+  let HOLES = [];
+  let centroid = { x: 0, y: 0 };
+  let currentShape = null;
 
   const state = {
     width: 0,
@@ -79,44 +262,6 @@
     guessResult: null,
   };
 
-  function circlePath(cx, cy, r) {
-    return `M${cx - r} ${cy}a${r} ${r} 0 1 0 ${r * 2} 0a${r} ${r} 0 1 0 ${-r * 2} 0`;
-  }
-
-  shapeBody.setAttribute(
-    "d",
-    SHAPE_D + HOLES.map(([x, y]) => circlePath(x, y, HOLE_R)).join("")
-  );
-  shapeStroke.setAttribute("d", SHAPE_D);
-  shapeClipPath.setAttribute(
-    "d",
-    SHAPE_D + HOLES.map(([x, y]) => circlePath(x, y, HOLE_R)).join("")
-  );
-  shapeClipPath.setAttribute("fill-rule", "evenodd");
-
-  HOLES.forEach((hole, index) => {
-    const hit = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-    hit.classList.add("hole-hit");
-    hit.setAttribute("cx", hole[0]);
-    hit.setAttribute("cy", hole[1]);
-    hit.setAttribute("r", HOLE_R * 2.1);
-    hit.dataset.index = String(index);
-
-    const disk = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-    disk.classList.add("hole-disk");
-    disk.setAttribute("cx", hole[0]);
-    disk.setAttribute("cy", hole[1]);
-    disk.setAttribute("r", HOLE_R);
-    disk.dataset.index = String(index);
-
-    holesGroup.append(hit, disk);
-
-    const clip = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-    clip.setAttribute("r", HOLE_R * SHAPE_SCALE);
-    clip.dataset.index = String(index);
-    holesClip.append(clip);
-  });
-
   function createPeg() {
     const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
     circle.classList.add("peg");
@@ -130,20 +275,67 @@
   hookGroup.append(createPeg());
   hookOverGroup.append(createPeg());
 
-  function polygonCentroid(verts) {
-    let area = 0;
-    let cx = 0;
-    let cy = 0;
-    for (let i = 0; i < verts.length; i += 1) {
-      const [x1, y1] = verts[i];
-      const [x2, y2] = verts[(i + 1) % verts.length];
-      const cross = x1 * y2 - x2 * y1;
-      area += cross;
-      cx += (x1 + x2) * cross;
-      cy += (y1 + y2) * cross;
-    }
-    area *= 0.5;
-    return { x: cx / (6 * area), y: cy / (6 * area) };
+  function rebuildHoles() {
+    holesGroup.replaceChildren();
+    holesClip.replaceChildren();
+
+    HOLES.forEach((hole, index) => {
+      const hit = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      hit.classList.add("hole-hit");
+      hit.setAttribute("cx", hole[0]);
+      hit.setAttribute("cy", hole[1]);
+      hit.setAttribute("r", HOLE_R * 2.1);
+      hit.dataset.index = String(index);
+
+      const disk = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      disk.classList.add("hole-disk");
+      disk.setAttribute("cx", hole[0]);
+      disk.setAttribute("cy", hole[1]);
+      disk.setAttribute("r", HOLE_R);
+      disk.dataset.index = String(index);
+
+      holesGroup.append(hit, disk);
+
+      const clip = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      clip.setAttribute("r", HOLE_R * SHAPE_SCALE);
+      clip.dataset.index = String(index);
+      holesClip.append(clip);
+    });
+  }
+
+  function applyShape(id) {
+    const next = SHAPES.find((item) => item.id === id);
+    if (!next) return;
+
+    currentShape = next;
+    VERTICES = next.vertices;
+    HOLES = next.holes;
+    centroid = next.centroid;
+
+    const holeCuts = HOLES.map(([x, y]) => circlePath(x, y, HOLE_R)).join("");
+    shapeBody.setAttribute("d", next.path + holeCuts);
+    shapeStroke.setAttribute("d", next.path);
+    shapeClipPath.setAttribute("d", next.path + holeCuts);
+    shapeClipPath.setAttribute("fill-rule", "evenodd");
+
+    app.style.setProperty("--shape-fill", next.fill);
+    app.style.setProperty("--shape-stroke", next.stroke);
+    app.dataset.shape = next.id;
+
+    rebuildHoles();
+
+    document.querySelectorAll("[data-shape]").forEach((btn) => {
+      const on = btn.dataset.shape === next.id;
+      btn.classList.toggle("is-active", on);
+      btn.setAttribute("aria-pressed", String(on));
+    });
+  }
+
+  function selectShape(id) {
+    if (currentShape && currentShape.id === id) return;
+    applyShape(id);
+    clearDrawings();
+    resetToDefault();
   }
 
   function pointInPolygon(x, y, verts) {
@@ -158,6 +350,14 @@
       if (intersect) inside = !inside;
     }
     return inside;
+  }
+
+  function pointInShape(x, y) {
+    if (!currentShape) return false;
+    if (currentShape.kind === "circle") {
+      return Math.hypot(x - currentShape.cx, y - currentShape.cy) <= currentShape.r;
+    }
+    return pointInPolygon(x, y, VERTICES);
   }
 
   function rotatePoint(x, y, angle) {
@@ -190,7 +390,7 @@
   }
 
   function hangAngleFor(holeIndex) {
-    if (holeIndex === 0) return 0;
+    if (currentShape.id === "utvar" && holeIndex === 0) return 0;
     const hole = HOLES[holeIndex];
     const vx = centroid.x - hole[0];
     const vy = centroid.y - hole[1];
@@ -229,7 +429,7 @@
   }
 
   function pointOnShapeBody(x, y) {
-    if (!pointInPolygon(x, y, VERTICES)) return false;
+    if (!pointInShape(x, y)) return false;
     for (let i = 0; i < HOLES.length; i += 1) {
       const hole = HOLES[i];
       if (Math.hypot(x - hole[0], y - hole[1]) <= HOLE_R) return false;
@@ -247,6 +447,10 @@
     guessCmBtn.setAttribute("aria-pressed", String(tool === "guess-cm"));
     pencilBtn.classList.toggle("is-active", tool === "pencil");
     pencilBtn.setAttribute("aria-pressed", String(tool === "pencil"));
+  }
+
+  function shapeBounds() {
+    return currentShape.bounds;
   }
 
   function referenceGuessDistance() {
@@ -362,7 +566,7 @@
         return { kind: "hole", index: i };
       }
     }
-    if (pointInPolygon(local.x, local.y, VERTICES)) {
+    if (pointInShape(local.x, local.y)) {
       return { kind: "body" };
     }
     return null;
@@ -406,20 +610,6 @@
     state.placed = true;
   }
 
-  function shapeBounds() {
-    let minX = Infinity;
-    let minY = Infinity;
-    let maxX = -Infinity;
-    let maxY = -Infinity;
-    VERTICES.forEach(([x, y]) => {
-      minX = Math.min(minX, x);
-      minY = Math.min(minY, y);
-      maxX = Math.max(maxX, x);
-      maxY = Math.max(maxY, y);
-    });
-    return { minX, minY, maxX, maxY };
-  }
-
   function hangFrom(index, { settle = false } = {}) {
     state.hungIndex = index;
     state.omega = 0;
@@ -441,7 +631,6 @@
     state.dragging = false;
     state.dragMode = null;
     app.classList.remove("is-dragging");
-    clearDrawings();
     clearGuessResult();
     setTool("move");
     placeFreeCenter();
@@ -623,8 +812,13 @@
 
   unhookBtn.addEventListener("click", resetToDefault);
 
+  document.querySelectorAll("[data-shape]").forEach((btn) => {
+    btn.addEventListener("click", () => selectShape(btn.dataset.shape));
+  });
+
   window.addEventListener("resize", layout);
 
+  applyShape("utvar");
   layout();
   requestAnimationFrame(step);
 })();
